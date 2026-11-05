@@ -65,8 +65,8 @@ const initialDemoOrders = [
     total: 800,
     earnedPoints: 8,
     rider: {
-      name: 'Peter Mwangi',
-      phone: '+254 722 890 123',
+      name: 'REUBEN MATOKE',
+      phone: '+254799014136',
       vehicle: 'Motorbike KMD 432B',
     },
   },
@@ -115,8 +115,8 @@ export function OrderProvider({ children }) {
         statusText: 'Order received at Quickmart branch and confirmed by system',
         estimatedTime: '30 - 45 mins',
         rider: {
-          name: 'John Kamau',
-          phone: '+254 711 654 321',
+          name: 'REUBEN MATOKE',
+          phone: '+254799014136',
           vehicle: 'Express Dispatch KME 789A',
         },
         ...orderData,

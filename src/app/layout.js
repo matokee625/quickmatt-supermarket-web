@@ -82,11 +82,11 @@ export const metadata = {
 const structuredData = {
   '@context': 'https://schema.org',
   '@type': 'GroceryStore',
-  name: 'Quickmart Supermarket Kenya',
+  name: "MATOKE'S SUPERMARKET Kenya",
   image: 'https://images.unsplash.com/photo-1578916171728-46686eac8d58?w=1200&auto=format&fit=crop',
-  '@id': 'https://quickmart.co.ke',
-  url: 'https://quickmart.co.ke',
-  telephone: '+254 709 123 000',
+  '@id': 'https://matokes-supermarket.vercel.app',
+  url: 'https://matokes-supermarket.vercel.app',
+  telephone: '+254799014136',
   priceRange: 'KSh',
   address: {
     '@type': 'PostalAddress',

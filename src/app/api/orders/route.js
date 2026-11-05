@@ -96,8 +96,8 @@ export async function POST(request) {
       total: Number(total) || 0,
       earnedPoints: Math.floor((Number(total) || 0) / 100),
       rider: {
-        name: 'John Kamau',
-        phone: '+254 711 654 321',
+        name: 'REUBEN MATOKE',
+        phone: '+254799014136',
         vehicle: 'Express Dispatch KME 789A',
       },
     };
