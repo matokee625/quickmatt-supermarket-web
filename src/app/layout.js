@@ -15,31 +15,25 @@ const inter = Inter({
 });
 
 export const metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://quickmart.co.ke'),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://quickmatt-supermarket-web.vercel.app'),
   title: {
-    default: 'Quickmart Supermarket Kenya | Fresh & Easy Online Shopping & 45-Min Grocery Delivery',
-    template: '%s | Quickmart Supermarket Kenya',
+    default: 'Reubenquickmatt supermarket | Fresh & Easy Online Shopping & Fast Delivery',
+    template: '%s | Reubenquickmatt supermarket',
   },
   description:
-    'Kenya’s leading fresh supermarket. Shop fresh vegetables, butchery prime cuts, oven-hot deli bakery, unga, dairy, and household essentials online. Delivered to your doorstep in 45 minutes across Nairobi & Kenya with Lipa na M-Pesa.',
+    'Reubenquickmatt supermarket Kenya. Shop fresh groceries, butchery, bakery, dairy, and household essentials online with Lipa na M-Pesa.',
   keywords: [
+    'Reubenquickmatt supermarket',
+    'Reubenquickmatt',
+    'Reuben quickmatt supermarket',
+    'Reuben quickmart',
     'Quickmart',
-    'Quickmart supermarket',
     'online grocery Kenya',
-    'supermarket Nairobi',
     'supermarket delivery Kenya',
-    'buy groceries online Nairobi',
-    'Lipa na M-Pesa supermarket',
-    'Quickmart Kilimani',
-    'Quickmart Westlands',
-    'fresh sukuma wiki Nairobi',
-    'Quickmart bakery bread',
-    'cheapest supermarket Nairobi',
-    'grocery delivery Kenya',
   ],
-  authors: [{ name: 'Quickmart Supermarket Ltd' }],
-  creator: 'Quickmart Supermarket Kenya',
-  publisher: 'Quickmart Kenya',
+  authors: [{ name: 'Reubenquickmatt supermarket' }],
+  creator: 'Reubenquickmatt supermarket',
+  publisher: 'Reubenquickmatt supermarket',
   formatDetection: {
     email: false,
     address: true,

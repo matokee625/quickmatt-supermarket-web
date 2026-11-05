@@ -101,11 +101,11 @@ export default function Navbar() {
               Q
             </div>
             <div className="leading-tight">
-              <span className="text-2xl font-black text-gray-950 tracking-tight">
-                Quick<span className="text-[#E31E24]">mart</span>
+              <span className="text-xl sm:text-2xl font-black text-gray-950 tracking-tight">
+                Reuben<span className="text-[#E31E24]">quickmatt</span>
               </span>
               <span className="text-[10px] uppercase font-bold tracking-widest text-gray-500 block -mt-1">
-                Supermarket Kenya
+                Supermarket
               </span>
             </div>
           </Link>
