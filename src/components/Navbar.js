@@ -102,10 +102,10 @@ export default function Navbar() {
             </div>
             <div className="leading-tight">
               <span className="text-xl sm:text-2xl font-black text-gray-950 tracking-tight">
-                Reuben<span className="text-[#E31E24]">quickmatt</span>
+                MATOKE&apos;S <span className="text-[#E31E24]">SUPERMARKET</span>
               </span>
               <span className="text-[10px] uppercase font-bold tracking-widest text-gray-500 block -mt-1">
-                Supermarket
+                Fresh &amp; Easy Online Shopping
               </span>
             </div>
           </Link>

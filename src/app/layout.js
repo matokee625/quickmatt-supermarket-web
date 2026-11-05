@@ -15,25 +15,25 @@ const inter = Inter({
 });
 
 export const metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://quickmatt-supermarket-web.vercel.app'),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://matokes-supermarket.vercel.app'),
   title: {
-    default: 'Reubenquickmatt supermarket | Fresh & Easy Online Shopping & Fast Delivery',
-    template: '%s | Reubenquickmatt supermarket',
+    default: "MATOKE'S SUPERMARKET | Fresh & Easy Online Shopping & Fast Delivery",
+    template: "%s | MATOKE'S SUPERMARKET",
   },
   description:
-    'Reubenquickmatt supermarket Kenya. Shop fresh groceries, butchery, bakery, dairy, and household essentials online with Lipa na M-Pesa.',
+    "MATOKE'S SUPERMARKET Kenya. Shop fresh groceries, butchery, bakery, dairy, and household essentials online with Lipa na M-Pesa.",
   keywords: [
-    'Reubenquickmatt supermarket',
-    'Reubenquickmatt',
+    "MATOKE'S SUPERMARKET",
+    'Matoke Supermarket',
+    'Matokes Supermarket',
     'Reuben quickmatt supermarket',
-    'Reuben quickmart',
     'Quickmart',
     'online grocery Kenya',
     'supermarket delivery Kenya',
   ],
-  authors: [{ name: 'Reubenquickmatt supermarket' }],
-  creator: 'Reubenquickmatt supermarket',
-  publisher: 'Reubenquickmatt supermarket',
+  authors: [{ name: "MATOKE'S SUPERMARKET" }],
+  creator: "MATOKE'S SUPERMARKET",
+  publisher: "MATOKE'S SUPERMARKET",
   formatDetection: {
     email: false,
     address: true,
