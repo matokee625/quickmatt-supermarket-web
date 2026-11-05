@@ -21,13 +21,64 @@ import {
   FiEdit2,
   FiTrash2,
   FiDatabase,
+  FiLock,
+  FiLogOut,
+  FiShield,
 } from 'react-icons/fi';
+
+const ADMIN_STORAGE_KEY = 'matokes_admin_authenticated';
+const ADMIN_USER = 'Reuben@2026';
+const ADMIN_PASS = 'Matoke@v799';
 
 export default function AdminDashboardPage() {
   const { orders, updateOrderStatus, createOrder } = useOrder();
   const { selectedBranch } = useBranch();
   const { addToast } = useToast();
   const { user } = useAuth();
+
+  // Authentication State
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authChecking, setAuthChecking] = useState(true);
+  const [usernameInput, setUsernameInput] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
+  const [authError, setAuthError] = useState('');
+
+  useEffect(() => {
+    try {
+      const auth = sessionStorage.getItem(ADMIN_STORAGE_KEY);
+      if (auth === 'true') {
+        setIsAuthenticated(true);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setAuthChecking(false);
+    }
+  }, []);
+
+  const handleAdminLogin = (e) => {
+    e.preventDefault();
+    if (usernameInput.trim() === ADMIN_USER && passwordInput === ADMIN_PASS) {
+      setIsAuthenticated(true);
+      try {
+        sessionStorage.setItem(ADMIN_STORAGE_KEY, 'true');
+      } catch (err) {}
+      addToast('Welcome, Administrator Reuben Matoke!', 'success');
+      setAuthError('');
+    } else {
+      setAuthError('Invalid Admin Username or Password. Access denied.');
+    }
+  };
+
+  const handleAdminLogout = () => {
+    try {
+      sessionStorage.removeItem(ADMIN_STORAGE_KEY);
+    } catch (e) {}
+    setIsAuthenticated(false);
+    setUsernameInput('');
+    setPasswordInput('');
+    addToast('Admin session locked securely.', 'info');
+  };
 
   const [activeTab, setActiveTab] = useState('orders'); // 'orders' | 'inventory' | 'mpesa' | 'database'
   const [productsList, setProductsList] = useState([]);
@@ -198,6 +249,92 @@ export default function AdminDashboardPage() {
     p.category?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // Security Gate Screen
+  if (authChecking) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-[#E31E24] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-[#F8F9FA] flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+        <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
+          <div className="w-16 h-16 bg-[#E31E24] rounded-2xl mx-auto flex items-center justify-center text-white font-black text-2xl shadow-lg mb-4">
+            <FiShield className="w-8 h-8" />
+          </div>
+          <h2 className="text-2xl font-black text-gray-950 tracking-tight">
+            MATOKE&apos;S SUPERMARKET
+          </h2>
+          <p className="mt-1 text-xs uppercase tracking-widest text-red-600 font-bold">
+            Authorized Personnel &amp; Owner Portal
+          </p>
+        </div>
+
+        <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md px-4">
+          <div className="bg-white py-8 px-6 shadow-xl rounded-3xl border border-gray-100 sm:px-10">
+            <form onSubmit={handleAdminLogin} className="space-y-5">
+              {authError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-2xl text-xs font-semibold flex items-center gap-2">
+                  <FiAlertTriangle className="flex-shrink-0 w-4 h-4" />
+                  <span>{authError}</span>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold uppercase text-gray-700 mb-1.5">
+                  Admin Username
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    required
+                    value={usernameInput}
+                    onChange={(e) => setUsernameInput(e.target.value)}
+                    placeholder="Enter Admin Username"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-[#E31E24] focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase text-gray-700 mb-1.5">
+                  Admin Security Password
+                </label>
+                <div className="relative">
+                  <input
+                    type="password"
+                    required
+                    value={passwordInput}
+                    onChange={(e) => setPasswordInput(e.target.value)}
+                    placeholder="••••••••••••"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-[#E31E24] focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-[#E31E24] hover:bg-[#c9181e] text-white font-bold py-3.5 rounded-xl text-sm shadow-md transition-all flex items-center justify-center gap-2"
+              >
+                <FiLock className="w-4 h-4" />
+                <span>Verify &amp; Unlock Dashboard</span>
+              </button>
+            </form>
+
+            <div className="mt-6 pt-5 border-t border-gray-100 text-center">
+              <Link href="/" className="text-xs text-gray-500 hover:text-gray-900 font-medium">
+                &larr; Return to Supermarket Storefront
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-[#F2F2F2] min-h-screen py-8">
       <div className="max-w-7xl mx-auto px-4 space-y-6">
@@ -206,11 +343,11 @@ export default function AdminDashboardPage() {
         <div className="bg-white rounded-3xl p-6 border border-gray-200 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 bg-red-100 text-[#E31E24] rounded-2xl flex items-center justify-center font-black text-2xl flex-shrink-0">
-              QM
+              MS
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-black text-gray-950">Quickmart POS &amp; Branch Portal</h1>
+                <h1 className="text-2xl font-black text-gray-950">MATOKE&apos;S SUPERMARKET Portal</h1>
                 <span className="text-xs bg-red-100 text-[#E31E24] font-bold px-2.5 py-0.5 rounded-full">
                   LIVE DISPATCH
                 </span>
@@ -229,6 +366,14 @@ export default function AdminDashboardPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
+            <button
+              onClick={handleAdminLogout}
+              className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs px-3.5 py-2.5 rounded-xl shadow-sm flex items-center gap-1.5 transition-colors"
+              title="Lock Dashboard"
+            >
+              <FiLogOut />
+              <span>Lock Admin</span>
+            </button>
             <button
               onClick={() => setIsAddModalOpen(true)}
               className="bg-[#009639] hover:bg-[#007a2e] text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-sm flex items-center gap-1.5 transition-colors"
