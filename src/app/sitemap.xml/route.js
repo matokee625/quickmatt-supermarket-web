@@ -2,7 +2,7 @@ import { products, categories } from '@/data/products';
 import { branches } from '@/data/branches';
 
 export async function GET() {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://quickmart.co.ke';
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://matokes-supermarket.vercel.app';
 
   const staticRoutes = [
     '',

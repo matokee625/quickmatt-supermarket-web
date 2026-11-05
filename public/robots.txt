@@ -3,5 +3,5 @@ Allow: /
 Disallow: /admin
 Disallow: /api/
 
-Sitemap: https://quickmart.co.ke/sitemap.xml
+Sitemap: https://matokes-supermarket.vercel.app/sitemap.xml
 
