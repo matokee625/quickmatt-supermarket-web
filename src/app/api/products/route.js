@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { products as localProducts, categories, searchProducts, getProductsByCategory } from '@/data/products';
 import connectToDatabase from '@/lib/mongodb';
 import Product from '@/models/Product';
+import { requireAdmin } from '@/lib/adminAuth';
 
 export async function GET(request) {
   try {
@@ -98,6 +99,10 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
+  // ── Admin-only: protect product creation ──
+  const authError = requireAdmin(request);
+  if (authError) return authError;
+
   try {
     const conn = await connectToDatabase();
     const data = await request.json();

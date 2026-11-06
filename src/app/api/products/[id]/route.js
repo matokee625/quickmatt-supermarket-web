@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import connectToDatabase from '@/lib/mongodb';
 import Product from '@/models/Product';
 import { products as localProducts } from '@/data/products';
+import { requireAdmin } from '@/lib/adminAuth';
 
 export async function GET(request, { params }) {
   try {
@@ -36,6 +37,10 @@ export async function GET(request, { params }) {
 }
 
 export async function PATCH(request, { params }) {
+  // ── Admin-only: protect product updates ──
+  const authError = requireAdmin(request);
+  if (authError) return authError;
+
   try {
     const { id } = await params;
     const updates = await request.json();
@@ -68,6 +73,10 @@ export async function PATCH(request, { params }) {
 }
 
 export async function DELETE(request, { params }) {
+  // ── Admin-only: protect product deletion ──
+  const authError = requireAdmin(request);
+  if (authError) return authError;
+
   try {
     const { id } = await params;
     const conn = await connectToDatabase();

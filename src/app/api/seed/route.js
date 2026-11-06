@@ -2,8 +2,13 @@ import { NextResponse } from 'next/server';
 import connectToDatabase from '@/lib/mongodb';
 import Product from '@/models/Product';
 import { products as localProducts } from '@/data/products';
+import { requireAdmin } from '@/lib/adminAuth';
 
 export async function POST(request) {
+  // ── Admin-only: protect database seeding ──
+  const authError = requireAdmin(request);
+  if (authError) return authError;
+
   try {
     const conn = await connectToDatabase();
     if (!conn) {

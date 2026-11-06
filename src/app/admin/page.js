@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useOrder } from '@/context/OrderContext';
 import { useBranch } from '@/context/BranchContext';
 import { useToast } from '@/context/ToastContext';
 import { useAuth } from '@/context/AuthContext';
 import { formatKsh, categories } from '@/data/products';
+import EditableField from '@/components/EditableField';
 import {
   FiBox,
   FiTruck,
@@ -27,6 +28,7 @@ import {
 } from 'react-icons/fi';
 
 const ADMIN_STORAGE_KEY = 'matokes_admin_authenticated';
+const ADMIN_TOKEN_KEY = 'matokes_admin_api_token';
 const ADMIN_USER = 'Reuben@2026';
 const ADMIN_PASS = 'Matoke@v799';
 
@@ -36,18 +38,21 @@ export default function AdminDashboardPage() {
   const { addToast } = useToast();
   const { user } = useAuth();
 
-  // Authentication State
+  // ── Authentication State ──────────────────────────────────────────────
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
   const [usernameInput, setUsernameInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [authError, setAuthError] = useState('');
+  const [adminToken, setAdminToken] = useState('');
 
   useEffect(() => {
     try {
       const auth = sessionStorage.getItem(ADMIN_STORAGE_KEY);
-      if (auth === 'true') {
+      const token = sessionStorage.getItem(ADMIN_TOKEN_KEY);
+      if (auth === 'true' && token) {
         setIsAuthenticated(true);
+        setAdminToken(token);
       }
     } catch (e) {
       console.error(e);
@@ -56,37 +61,65 @@ export default function AdminDashboardPage() {
     }
   }, []);
 
-  const handleAdminLogin = (e) => {
+  const handleAdminLogin = async (e) => {
     e.preventDefault();
-    if (usernameInput.trim() === ADMIN_USER && passwordInput === ADMIN_PASS) {
+    setAuthError('');
+
+    if (usernameInput.trim() !== ADMIN_USER || passwordInput !== ADMIN_PASS) {
+      setAuthError('Invalid Admin Username or Password. Access denied.');
+      return;
+    }
+
+    // Fetch the server-side API token (never exposed in client bundle)
+    try {
+      const res = await fetch('/api/admin-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: usernameInput.trim(), password: passwordInput }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        setAuthError('Server rejected admin credentials.');
+        return;
+      }
+      setAdminToken(data.token);
       setIsAuthenticated(true);
       try {
         sessionStorage.setItem(ADMIN_STORAGE_KEY, 'true');
-      } catch (err) {}
+        sessionStorage.setItem(ADMIN_TOKEN_KEY, data.token);
+      } catch {}
       addToast('Welcome, Administrator Reuben Matoke!', 'success');
-      setAuthError('');
-    } else {
-      setAuthError('Invalid Admin Username or Password. Access denied.');
+    } catch (err) {
+      setAuthError('Could not reach authentication server: ' + err.message);
     }
   };
 
   const handleAdminLogout = () => {
     try {
       sessionStorage.removeItem(ADMIN_STORAGE_KEY);
-    } catch (e) {}
+      sessionStorage.removeItem(ADMIN_TOKEN_KEY);
+    } catch {}
     setIsAuthenticated(false);
+    setAdminToken('');
     setUsernameInput('');
     setPasswordInput('');
     addToast('Admin session locked securely.', 'info');
   };
 
-  const [activeTab, setActiveTab] = useState('orders'); // 'orders' | 'inventory' | 'mpesa' | 'database'
+  // Helper: add admin token to mutating fetch headers
+  const adminHeaders = useCallback(() => ({
+    'Content-Type': 'application/json',
+    'x-admin-token': adminToken,
+  }), [adminToken]);
+
+  // ── Dashboard State ───────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState('orders');
   const [productsList, setProductsList] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [dataSource, setDataSource] = useState('loading');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Add Product Modal State
+  // Add Product Modal
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newProduct, setNewProduct] = useState({
     name: '',
@@ -97,7 +130,11 @@ export default function AdminDashboardPage() {
     stockCount: 50,
   });
 
-  const fetchProducts = async () => {
+  // Edit Product Modal (full edit)
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [editDraft, setEditDraft] = useState({});
+
+  const fetchProducts = useCallback(async () => {
     setLoadingProducts(true);
     try {
       const res = await fetch('/api/products');
@@ -111,17 +148,18 @@ export default function AdminDashboardPage() {
     } finally {
       setLoadingProducts(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchProducts();
-  }, []);
+  }, [fetchProducts]);
 
-  // Calculate live branch metrics
+  // ── KPI Metrics ───────────────────────────────────────────────────────
   const branchOrders = orders.filter((o) => o.branch?.id === selectedBranch.id || !o.branch);
   const totalRevenueKsh = branchOrders.reduce((sum, o) => sum + (o.total || 0), 0);
   const pendingCount = branchOrders.filter((o) => o.status !== 'delivered').length;
 
+  // ── Simulate Order ────────────────────────────────────────────────────
   const handleSimulateIncomingOrder = () => {
     const randomProduct = productsList.length > 0 ? productsList[Math.floor(Math.random() * productsList.length)] : null;
     const newOrder = createOrder({
@@ -140,35 +178,32 @@ export default function AdminDashboardPage() {
         status: 'Paid',
         phone: '0733987654',
       },
-      items: randomProduct ? [
-        {
-          id: randomProduct.id,
-          name: randomProduct.name,
-          price: randomProduct.price,
-          quantity: 2,
-          unit: randomProduct.unit,
-          image: randomProduct.image,
-        },
-      ] : [],
+      items: randomProduct ? [{
+        id: randomProduct.id,
+        name: randomProduct.name,
+        price: randomProduct.price,
+        quantity: 2,
+        unit: randomProduct.unit,
+        image: randomProduct.image,
+      }] : [],
       subtotal: randomProduct ? randomProduct.price * 2 : 500,
       deliveryFee: 150,
       total: (randomProduct ? randomProduct.price * 2 : 500) + 150,
     });
-
     addToast(`Incoming delivery order #${newOrder.id} simulated!`, 'success');
   };
 
+  // ── Create Product ────────────────────────────────────────────────────
   const handleCreateProduct = async (e) => {
     e.preventDefault();
     if (!newProduct.name || !newProduct.price) {
       addToast('Please enter name and price', 'error');
       return;
     }
-
     try {
       const res = await fetch('/api/products', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: adminHeaders(),
         body: JSON.stringify({
           ...newProduct,
           price: Number(newProduct.price),
@@ -196,12 +231,71 @@ export default function AdminDashboardPage() {
     }
   };
 
+  // ── Inline field PATCH ────────────────────────────────────────────────
+  const handlePatchField = async (prod, field, value) => {
+    const res = await fetch(`/api/products/${prod.id}`, {
+      method: 'PATCH',
+      headers: adminHeaders(),
+      body: JSON.stringify({ [field]: value }),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.message || 'Failed to update');
+    }
+    addToast(`${prod.name} → ${field} updated`, 'success');
+    setProductsList((prev) =>
+      prev.map((p) => (p.id === prod.id ? { ...p, [field]: value } : p))
+    );
+  };
+
+  // ── Full Edit Modal (open) ────────────────────────────────────────────
+  const handleOpenEditModal = (prod) => {
+    setEditingProduct(prod);
+    setEditDraft({
+      name: prod.name,
+      category: prod.category,
+      price: prod.price,
+      unit: prod.unit || '',
+      image: prod.image || '',
+      stockCount: prod.stockCount ?? 50,
+      inStock: prod.inStock !== false,
+    });
+  };
+
+  const handleSaveEditModal = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`/api/products/${editingProduct.id}`, {
+        method: 'PATCH',
+        headers: adminHeaders(),
+        body: JSON.stringify({
+          ...editDraft,
+          price: Number(editDraft.price),
+          stockCount: Number(editDraft.stockCount),
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        addToast(`${editingProduct.name} updated!`, 'success');
+        setProductsList((prev) =>
+          prev.map((p) => (p.id === editingProduct.id ? { ...p, ...editDraft, price: Number(editDraft.price), stockCount: Number(editDraft.stockCount) } : p))
+        );
+        setEditingProduct(null);
+      } else {
+        addToast(data.message || 'Update failed', 'error');
+      }
+    } catch (err) {
+      addToast(err.message, 'error');
+    }
+  };
+
+  // ── Toggle Stock ──────────────────────────────────────────────────────
   const handleToggleStock = async (prod) => {
     const newStock = !prod.inStock;
     try {
       const res = await fetch(`/api/products/${prod.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: adminHeaders(),
         body: JSON.stringify({ inStock: newStock }),
       });
       if (res.ok) {
@@ -215,10 +309,14 @@ export default function AdminDashboardPage() {
     }
   };
 
+  // ── Delete Product ────────────────────────────────────────────────────
   const handleDeleteProduct = async (prod) => {
     if (!confirm(`Are you sure you want to delete ${prod.name}?`)) return;
     try {
-      const res = await fetch(`/api/products/${prod.id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/products/${prod.id}`, {
+        method: 'DELETE',
+        headers: { 'x-admin-token': adminToken },
+      });
       if (res.ok) {
         addToast(`${prod.name} removed`, 'info');
         setProductsList((prev) => prev.filter((p) => p.id !== prod.id));
@@ -228,10 +326,14 @@ export default function AdminDashboardPage() {
     }
   };
 
+  // ── Seed Database ─────────────────────────────────────────────────────
   const handleSeedDatabase = async () => {
     try {
       addToast('Seeding MongoDB...', 'info');
-      const res = await fetch('/api/seed', { method: 'POST' });
+      const res = await fetch('/api/seed', {
+        method: 'POST',
+        headers: { 'x-admin-token': adminToken },
+      });
       const data = await res.json();
       if (data.success) {
         addToast(data.message, 'success');
@@ -249,7 +351,9 @@ export default function AdminDashboardPage() {
     p.category?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Security Gate Screen
+  // ══════════════════════════════════════════════════════════════════════
+  // RENDER: Security Gate
+  // ══════════════════════════════════════════════════════════════════════
   if (authChecking) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -287,32 +391,28 @@ export default function AdminDashboardPage() {
                 <label className="block text-xs font-bold uppercase text-gray-700 mb-1.5">
                   Admin Username
                 </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    required
-                    value={usernameInput}
-                    onChange={(e) => setUsernameInput(e.target.value)}
-                    placeholder="Enter Admin Username"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-[#E31E24] focus:outline-none"
-                  />
-                </div>
+                <input
+                  type="text"
+                  required
+                  value={usernameInput}
+                  onChange={(e) => setUsernameInput(e.target.value)}
+                  placeholder="Enter Admin Username"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-[#E31E24] focus:outline-none"
+                />
               </div>
 
               <div>
                 <label className="block text-xs font-bold uppercase text-gray-700 mb-1.5">
                   Admin Security Password
                 </label>
-                <div className="relative">
-                  <input
-                    type="password"
-                    required
-                    value={passwordInput}
-                    onChange={(e) => setPasswordInput(e.target.value)}
-                    placeholder="••••••••••••"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-[#E31E24] focus:outline-none"
-                  />
-                </div>
+                <input
+                  type="password"
+                  required
+                  value={passwordInput}
+                  onChange={(e) => setPasswordInput(e.target.value)}
+                  placeholder="••••••••••••"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-[#E31E24] focus:outline-none"
+                />
               </div>
 
               <button
@@ -335,18 +435,21 @@ export default function AdminDashboardPage() {
     );
   }
 
+  // ══════════════════════════════════════════════════════════════════════
+  // RENDER: Authenticated Admin Dashboard
+  // ══════════════════════════════════════════════════════════════════════
   return (
     <div className="bg-[#F2F2F2] min-h-screen py-8">
       <div className="max-w-7xl mx-auto px-4 space-y-6">
 
-        {/* Header Banner */}
+        {/* ── Header Banner ── */}
         <div className="bg-white rounded-3xl p-6 border border-gray-200 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 bg-red-100 text-[#E31E24] rounded-2xl flex items-center justify-center font-black text-2xl flex-shrink-0">
               MS
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-2xl font-black text-gray-950">MATOKE&apos;S SUPERMARKET Portal</h1>
                 <span className="text-xs bg-red-100 text-[#E31E24] font-bold px-2.5 py-0.5 rounded-full">
                   LIVE DISPATCH
@@ -355,6 +458,9 @@ export default function AdminDashboardPage() {
                   dataSource === 'mongodb' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
                 }`}>
                   DB: {dataSource}
+                </span>
+                <span className="text-[10px] bg-purple-100 text-purple-800 font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                  🔐 Admin Mode
                 </span>
               </div>
               <p className="text-xs text-gray-500 flex items-center gap-2 mt-1">
@@ -391,7 +497,7 @@ export default function AdminDashboardPage() {
           </div>
         </div>
 
-        {/* Branch Performance KPI Cards */}
+        {/* ── KPI Cards ── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
             <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Branch Daily Revenue</span>
@@ -415,43 +521,29 @@ export default function AdminDashboardPage() {
           </div>
         </div>
 
-        {/* Navigation Tabs */}
-        <div className="flex border-b border-gray-200 bg-white rounded-2xl px-3 p-1.5 shadow-sm gap-2">
-          <button
-            onClick={() => setActiveTab('orders')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors ${
-              activeTab === 'orders' ? 'bg-[#E31E24] text-white shadow-sm' : 'text-gray-600 hover:text-gray-950'
-            }`}
-          >
-            Fulfillment Queue ({branchOrders.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('inventory')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors ${
-              activeTab === 'inventory' ? 'bg-[#E31E24] text-white shadow-sm' : 'text-gray-600 hover:text-gray-950'
-            }`}
-          >
-            Product Catalog &amp; Inventory ({productsList.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('mpesa')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors ${
-              activeTab === 'mpesa' ? 'bg-[#E31E24] text-white shadow-sm' : 'text-gray-600 hover:text-gray-950'
-            }`}
-          >
-            Lipa na M-Pesa Audit Trail
-          </button>
-          <button
-            onClick={() => setActiveTab('database')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors ${
-              activeTab === 'database' ? 'bg-[#E31E24] text-white shadow-sm' : 'text-gray-600 hover:text-gray-950'
-            }`}
-          >
-            Database &amp; Cloud Run
-          </button>
+        {/* ── Tabs ── */}
+        <div className="flex border-b border-gray-200 bg-white rounded-2xl px-3 p-1.5 shadow-sm gap-2 flex-wrap">
+          {[
+            { id: 'orders', label: `Fulfillment Queue (${branchOrders.length})` },
+            { id: 'inventory', label: `Product Catalog & Inventory (${productsList.length})` },
+            { id: 'mpesa', label: 'Lipa na M-Pesa Audit Trail' },
+            { id: 'database', label: 'Database & Cloud Run' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors ${
+                activeTab === tab.id ? 'bg-[#E31E24] text-white shadow-sm' : 'text-gray-600 hover:text-gray-950'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
-        {/* Tab 1: Orders Queue */}
+        {/* ══════════════════════════════════════════════════════════════
+            Tab 1: Orders Queue
+        ══════════════════════════════════════════════════════════════ */}
         {activeTab === 'orders' && (
           <div className="bg-white rounded-3xl border border-gray-200 shadow-sm p-6 space-y-4">
             <h3 className="font-black text-sm uppercase tracking-wider text-gray-700">
@@ -464,7 +556,7 @@ export default function AdminDashboardPage() {
                 branchOrders.map((order) => (
                   <div key={order.id} className="py-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                     <div className="space-y-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-bold text-gray-900 text-sm">{order.id}</span>
                         <span className="text-xs bg-gray-100 text-gray-700 font-bold px-2 py-0.5 rounded-full">
                           {order.fulfillmentMode === 'delivery' ? 'Quickmart Rider Delivery' : 'Click & Collect'}
@@ -534,13 +626,20 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
-        {/* Tab 2: Inventory & Catalog Management */}
+        {/* ══════════════════════════════════════════════════════════════
+            Tab 2: Inventory & Catalog — with inline admin editing
+        ══════════════════════════════════════════════════════════════ */}
         {activeTab === 'inventory' && (
           <div className="bg-white rounded-3xl border border-gray-200 shadow-sm p-6 space-y-4">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-              <h3 className="font-black text-sm uppercase tracking-wider text-gray-700">
-                Supermarket Shelf Inventory &amp; Price Controls
-              </h3>
+              <div>
+                <h3 className="font-black text-sm uppercase tracking-wider text-gray-700">
+                  Supermarket Shelf Inventory &amp; Price Controls
+                </h3>
+                <p className="text-[11px] text-purple-600 font-semibold mt-0.5 flex items-center gap-1">
+                  🔐 Admin: Hover any value to edit it inline — or click the ✏️ button for full edit.
+                </p>
+              </div>
               <div className="flex items-center gap-2 w-full sm:w-auto">
                 <input
                   type="text"
@@ -565,7 +664,7 @@ export default function AdminDashboardPage() {
                   <tr>
                     <th className="p-3">Product</th>
                     <th className="p-3">Category</th>
-                    <th className="p-3">Price</th>
+                    <th className="p-3">Price (KSh)</th>
                     <th className="p-3">Stock Units</th>
                     <th className="p-3">Status</th>
                     <th className="p-3 text-right">Actions</th>
@@ -574,16 +673,67 @@ export default function AdminDashboardPage() {
                 <tbody className="divide-y divide-gray-100">
                   {filteredProducts.map((p) => (
                     <tr key={p.id} className="hover:bg-gray-50">
+                      {/* Product Name — inline editable by admin */}
                       <td className="p-3 flex items-center gap-2">
-                        <img src={p.image} alt={p.name} className="w-9 h-9 rounded-lg object-cover bg-gray-100" />
+                        <img src={p.image} alt={p.name} className="w-9 h-9 rounded-lg object-cover bg-gray-100 flex-shrink-0" />
                         <div>
-                          <p className="font-bold text-gray-900">{p.name}</p>
-                          <p className="text-[10px] text-gray-400">{p.unit || 'unit'}</p>
+                          <EditableField
+                            value={p.name}
+                            isAdmin={true}
+                            type="text"
+                            inputClass="w-40"
+                            onSave={(v) => handlePatchField(p, 'name', v)}
+                            className="font-bold text-gray-900"
+                          />
+                          <EditableField
+                            value={p.unit || 'unit'}
+                            isAdmin={true}
+                            type="text"
+                            inputClass="w-24"
+                            onSave={(v) => handlePatchField(p, 'unit', v)}
+                            className="text-[10px] text-gray-400"
+                          />
                         </div>
                       </td>
-                      <td className="p-3 text-gray-600">{p.category}</td>
-                      <td className="p-3 font-bold text-gray-900">{formatKsh(p.price)}</td>
-                      <td className="p-3 font-semibold text-gray-700">{p.stockCount ?? 50}</td>
+
+                      {/* Category — inline editable by admin */}
+                      <td className="p-3 text-gray-600">
+                        <EditableField
+                          value={p.category}
+                          isAdmin={true}
+                          type="select"
+                          options={categories.map((c) => ({ value: c.name, label: c.name }))}
+                          onSave={(v) => handlePatchField(p, 'category', v)}
+                          className="text-gray-600"
+                        />
+                      </td>
+
+                      {/* Price — inline editable by admin */}
+                      <td className="p-3 font-bold text-gray-900">
+                        <EditableField
+                          value={p.price}
+                          isAdmin={true}
+                          type="number"
+                          inputClass="w-24"
+                          prefix="KSh "
+                          onSave={(v) => handlePatchField(p, 'price', v)}
+                          className="font-bold text-gray-900"
+                        />
+                      </td>
+
+                      {/* Stock Count — inline editable by admin */}
+                      <td className="p-3 font-semibold text-gray-700">
+                        <EditableField
+                          value={p.stockCount ?? 50}
+                          isAdmin={true}
+                          type="number"
+                          inputClass="w-20"
+                          onSave={(v) => handlePatchField(p, 'stockCount', v)}
+                          className="font-semibold text-gray-700"
+                        />
+                      </td>
+
+                      {/* In-Stock toggle */}
                       <td className="p-3">
                         <button
                           onClick={() => handleToggleStock(p)}
@@ -594,14 +744,25 @@ export default function AdminDashboardPage() {
                           {p.inStock !== false ? 'In Stock' : 'Out of Stock'}
                         </button>
                       </td>
+
+                      {/* Actions */}
                       <td className="p-3 text-right">
-                        <button
-                          onClick={() => handleDeleteProduct(p)}
-                          className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition"
-                          title="Delete Product"
-                        >
-                          <FiTrash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => handleOpenEditModal(p)}
+                            className="p-1.5 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition"
+                            title="Full Edit"
+                          >
+                            <FiEdit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteProduct(p)}
+                            className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition"
+                            title="Delete Product"
+                          >
+                            <FiTrash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -611,7 +772,9 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
-        {/* Tab 3: M-Pesa Log Tab */}
+        {/* ══════════════════════════════════════════════════════════════
+            Tab 3: M-Pesa Audit
+        ══════════════════════════════════════════════════════════════ */}
         {activeTab === 'mpesa' && (
           <div className="bg-white rounded-3xl border border-gray-200 shadow-sm p-6 space-y-4">
             <h3 className="font-black text-sm uppercase tracking-wider text-gray-700">
@@ -650,7 +813,9 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
-        {/* Tab 4: Database & Cloud Run Setup */}
+        {/* ══════════════════════════════════════════════════════════════
+            Tab 4: Database & Cloud Run
+        ══════════════════════════════════════════════════════════════ */}
         {activeTab === 'database' && (
           <div className="bg-white rounded-3xl border border-gray-200 shadow-sm p-6 space-y-6">
             <div>
@@ -699,7 +864,9 @@ export default function AdminDashboardPage() {
 
       </div>
 
-      {/* Add Product Modal */}
+      {/* ══════════════════════════════════════════════════════════════
+          Add Product Modal
+      ══════════════════════════════════════════════════════════════ */}
       {isAddModalOpen && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-gray-100 space-y-4">
@@ -779,6 +946,118 @@ export default function AdminDashboardPage() {
                   className="bg-[#E31E24] hover:bg-[#c9181e] text-white font-bold text-xs px-5 py-2 rounded-xl transition"
                 >
                   Save Product
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════
+          Full Edit Product Modal
+      ══════════════════════════════════════════════════════════════ */}
+      {editingProduct && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-gray-100 space-y-4">
+            <h3 className="font-black text-lg text-gray-900 flex items-center gap-2">
+              <FiEdit2 className="text-[#E31E24]" />
+              Edit Product
+            </h3>
+
+            <form onSubmit={handleSaveEditModal} className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold uppercase text-gray-600 mb-1">Product Name</label>
+                <input
+                  type="text"
+                  required
+                  value={editDraft.name}
+                  onChange={(e) => setEditDraft({ ...editDraft, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl text-xs focus:ring-1 focus:ring-[#E31E24] focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase text-gray-600 mb-1">Category</label>
+                <select
+                  value={editDraft.category}
+                  onChange={(e) => setEditDraft({ ...editDraft, category: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl text-xs focus:ring-1 focus:ring-[#E31E24] focus:outline-none"
+                >
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.name}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs font-bold uppercase text-gray-600 mb-1">Price (KSh)</label>
+                  <input
+                    type="number"
+                    required
+                    value={editDraft.price}
+                    onChange={(e) => setEditDraft({ ...editDraft, price: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl text-xs focus:ring-1 focus:ring-[#E31E24] focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase text-gray-600 mb-1">Unit</label>
+                  <input
+                    type="text"
+                    value={editDraft.unit}
+                    onChange={(e) => setEditDraft({ ...editDraft, unit: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl text-xs focus:ring-1 focus:ring-[#E31E24] focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase text-gray-600 mb-1">Stock Count</label>
+                <input
+                  type="number"
+                  value={editDraft.stockCount}
+                  onChange={(e) => setEditDraft({ ...editDraft, stockCount: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl text-xs focus:ring-1 focus:ring-[#E31E24] focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase text-gray-600 mb-1">Image URL</label>
+                <input
+                  type="url"
+                  value={editDraft.image}
+                  onChange={(e) => setEditDraft({ ...editDraft, image: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl text-xs focus:ring-1 focus:ring-[#E31E24] focus:outline-none"
+                />
+                {editDraft.image && (
+                  <img src={editDraft.image} alt="preview" className="mt-2 w-16 h-16 rounded-xl object-cover border border-gray-200" />
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="inStockToggle"
+                  checked={editDraft.inStock}
+                  onChange={(e) => setEditDraft({ ...editDraft, inStock: e.target.checked })}
+                  className="accent-[#E31E24] w-4 h-4"
+                />
+                <label htmlFor="inStockToggle" className="text-xs font-bold text-gray-600">In Stock</label>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingProduct(null)}
+                  className="px-4 py-2 text-xs font-bold text-gray-500 hover:text-gray-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="bg-[#E31E24] hover:bg-[#c9181e] text-white font-bold text-xs px-5 py-2 rounded-xl transition"
+                >
+                  Save Changes
                 </button>
               </div>
             </form>
